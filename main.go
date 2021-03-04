@@ -56,6 +56,11 @@ func main() {
 	flag.Usage = func() {}
 	flag.Parse()
 
+	if len(os.Args) == 1 {
+		fmt.Print(generalHelp)
+		os.Exit(0)
+	}
+
 	if *version || *v {
 		fmt.Println(ver)
 		os.Exit(0)
