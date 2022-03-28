@@ -12,7 +12,7 @@ import (
 	"github.com/patrickhener/go-bhtool/db"
 )
 
-const ver string = "v0.0.1"
+const ver string = "v0.0.2"
 
 var (
 	uri      string
@@ -20,12 +20,11 @@ var (
 	pass     string
 	domain   string
 	userlist string
-
-	usersInUserlist []string
+	tls      bool
 )
 
 var generalHelp = `
-  Usage: go-bhtool [--neo4j-uri] [--neo4j-user] [--neo4j-pass] [command] [--help]
+  Usage: go-bhtool [--neo4j-uri] [--neo4j-user] [--neo4j-pass] [--tls] [command] [--help]
 
   Version: ` + ver + ` (` + runtime.Version() + `)
 
@@ -33,6 +32,7 @@ var generalHelp = `
     neo4j-uri: 	bolt://localhost:7687
     neo4j-user:	neo4j
     neo4j-pass:	admin
+    tls:	false
 
   Commands:
     own		- mark multiple users as owned
@@ -48,6 +48,7 @@ func main() {
 	flag.StringVar(&uri, "neo4j-uri", "bolt://localhost:7687", "")
 	flag.StringVar(&user, "neo4j-user", "neo4j", "")
 	flag.StringVar(&pass, "neo4j-pass", "neo4j", "")
+	flag.BoolVar(&tls, "tls", false, "")
 
 	version := flag.Bool("version", false, "")
 	v := flag.Bool("v", false, "")
@@ -77,7 +78,7 @@ func main() {
 	// Connect to neo4j
 	neo4jCon := &db.Neo4jDB{}
 
-	if err := neo4jCon.Connect(uri, user, pass); err != nil {
+	if err := neo4jCon.Connect(uri, user, pass, tls); err != nil {
 		log.Printf("Error connecting to neo4j instance: %+v", err)
 		os.Exit(1)
 	}

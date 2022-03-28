@@ -19,9 +19,15 @@ type Neo4jDB struct {
 }
 
 // Connect will connect to the database and test the connection
-func (n *Neo4jDB) Connect(uri, user, pass string) error {
+func (n *Neo4jDB) Connect(uri, user, pass string, tls bool) error {
 	var err error
-	n.Driver, err = neo4j.NewDriver(uri, neo4j.BasicAuth(user, pass, ""))
+	n.Driver, err = neo4j.NewDriver(uri, neo4j.BasicAuth(user, pass, ""), func(c *neo4j.Config) {
+		if tls {
+			c.Encrypted = true
+		} else {
+			c.Encrypted = false
+		}
+	})
 	if err != nil {
 		return err
 	}
