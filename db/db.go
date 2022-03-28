@@ -104,9 +104,11 @@ func (n *Neo4jDB) checkowned(user string) bool {
 		if !ok {
 			return false
 		}
-		if owned != nil {
-			return true
+		ownedBool, ok := owned.(bool)
+		if !ok {
+			return false
 		}
+		return ownedBool
 	}
 	return false
 }
