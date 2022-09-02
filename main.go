@@ -12,15 +12,15 @@ import (
 	"github.com/patrickhener/go-bhtool/db"
 )
 
-const ver string = "v0.0.2"
+const ver string = "v0.0.3"
 
 var (
-	uri      string
-	user     string
-	pass     string
-	domain   string
-	userlist string
-	tls      bool
+	uri    string
+	user   string
+	pass   string
+	domain string
+	list   string
+	tls    bool
 )
 
 var generalHelp = `
@@ -35,8 +35,8 @@ var generalHelp = `
     tls:	false
 
   Commands:
-    own		- mark multiple users as owned
-    owned	- get a list of owned users
+    own [user(default)/computer]	- mark multiple users as owned
+    owned [user(default)/computer]	- get a list of owned users
 
   Read more:
     https://github.com/patrickhener/go-bhtool
@@ -91,9 +91,40 @@ func main() {
 
 	switch subcmd {
 	case "own":
-		own(args, neo4jCon)
+		subsubcmd := ""
+		if len(args) > 0 {
+			subsubcmd = args[0]
+			args = args[1:]
+		} else {
+			subsubcmd = "user"
+		}
+		switch subsubcmd {
+		case "user":
+			own(args, neo4jCon, "user")
+		case "computer":
+			own(args, neo4jCon, "computer")
+		default:
+			fmt.Print(generalHelp)
+			os.Exit(0)
+
+		}
 	case "owned":
-		owned(args, neo4jCon)
+		subsubcmd := ""
+		if len(args) > 0 {
+			subsubcmd = args[0]
+			args = args[1:]
+		} else {
+			subsubcmd = "user"
+		}
+		switch subsubcmd {
+		case "user":
+			owned(args, neo4jCon, "user")
+		case "computer":
+			owned(args, neo4jCon, "computer")
+		default:
+			fmt.Print(generalHelp)
+			os.Exit(0)
+		}
 	default:
 		fmt.Print(help)
 		os.Exit(0)
@@ -110,31 +141,37 @@ var commonHelp = `
 `
 
 var ownHelp = `
-  Usage: go-bhtool own [options] [users...]
+  Usage: go-bhtool own <user/computer> [options] [user/computer...]
 
-  Mark multiple users as owned
+  Mark multiple user/computer as owned
 
   Options:
 
-    --userlist, Path to list of file with users - one per line
+    --list, Path to list of file with users - one per line
     --domain, Domain to add to users where there is no domain
 
   Examples:
 
   * Import a list of users and add domain when missing
 
-  go-bhtool own --userlist /path/to/myuserlist.txt --domain contoso.com
+  go-bhtool own user --list /path/to/myuserlist.txt --domain contoso.com
+  go-bhtool own computer --list /path/to/mycomputerlist.txt --domain contoso.com
 
-  * Import two users without a list
+  * Import two user without a list
 
   go-bhtool own user1@contoso.com user2@contoso.com
+
+  * Import two computer without a list
+
+  go-bhtool own pc01@contoso.com pc02@contoso.com
+
 ` + commonHelp
 
-func own(args []string, db *db.Neo4jDB) {
-	var usersToAdd []string = make([]string, 0)
+func own(args []string, db *db.Neo4jDB, what string) {
+	var objectToAdd []string = make([]string, 0)
 
 	flags := flag.NewFlagSet("own", flag.ContinueOnError)
-	flags.StringVar(&userlist, "userlist", "", "")
+	flags.StringVar(&list, "list", "", "")
 	flags.StringVar(&domain, "domain", "", "")
 	flags.Usage = func() {
 		fmt.Print(ownHelp)
@@ -142,11 +179,11 @@ func own(args []string, db *db.Neo4jDB) {
 	}
 	flags.Parse(args)
 
-	// Read userlist if defined
-	if userlist != "" {
-		file, err := os.Open(userlist)
+	// Read list if defined
+	if list != "" {
+		file, err := os.Open(list)
 		if err != nil {
-			log.Printf("Error reading file @ %s: %+v", userlist, err)
+			log.Printf("Error reading file @ %s: %+v", list, err)
 			os.Exit(1)
 		}
 		defer file.Close()
@@ -157,16 +194,16 @@ func own(args []string, db *db.Neo4jDB) {
 			// Read line from file
 			line := scanner.Text()
 			// All upper case
-			addUser := strings.ToUpper(line)
+			addObject := strings.ToUpper(line)
 			// Add domain if flag is defined
 			if domain != "" {
 				// If there is no @ in line
 				if !strings.Contains(line, "@") {
-					addUser += "@" + strings.ToUpper(domain)
+					addObject += "@" + strings.ToUpper(domain)
 				}
 			}
 
-			usersToAdd = append(usersToAdd, addUser)
+			objectToAdd = append(objectToAdd, addObject)
 		}
 
 		if scanner.Err() != nil {
@@ -174,24 +211,24 @@ func own(args []string, db *db.Neo4jDB) {
 		}
 	}
 
-	// Read positional flags and add to usersToAdd
-	users := flags.Args()
-	for _, u := range users {
+	// Read positional flags and add to objectsToAdd
+	objects := flags.Args()
+	for _, u := range objects {
 		// All upper case
-		addUser := strings.ToUpper(u)
+		addObject := strings.ToUpper(u)
 		// Add domain if flag is defined
 		if domain != "" {
 			// If there is no @ in line
 			if !strings.Contains(u, "@") {
-				addUser += "@" + strings.ToUpper(domain)
+				addObject += "@" + strings.ToUpper(domain)
 			}
 		}
 
-		usersToAdd = append(usersToAdd, addUser)
+		objectToAdd = append(objectToAdd, addObject)
 	}
 
-	if err := db.Own(usersToAdd); err != nil {
-		log.Printf("Error when trying to add users to neo4j database: %+v", err)
+	if err := db.Own(objectToAdd, what); err != nil {
+		log.Printf("Error when trying to add objects to neo4j database: %+v", err)
 		os.Exit(1)
 	}
 }
@@ -199,10 +236,10 @@ func own(args []string, db *db.Neo4jDB) {
 var ownedHelp = `
   Usage: go-bhtool owned
 
-  Get a list of owned users
+  Get a list of owned user or computer
 ` + commonHelp
 
-func owned(args []string, db *db.Neo4jDB) {
+func owned(args []string, db *db.Neo4jDB, what string) {
 	flags := flag.NewFlagSet("owned", flag.ContinueOnError)
 	flags.Usage = func() {
 		fmt.Print(ownedHelp)
@@ -210,12 +247,8 @@ func owned(args []string, db *db.Neo4jDB) {
 	}
 	flags.Parse(args)
 
-	if err := db.Owned(); err != nil {
-		log.Printf("There was an error fetching owned users from neo4j database: %+v", err)
+	if err := db.Owned(what); err != nil {
+		log.Printf("There was an error fetching owned objects from neo4j database: %+v", err)
 		os.Exit(1)
 	}
 }
-
-/*
-
-}*/
